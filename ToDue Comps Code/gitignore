@@ -1,0 +1,40 @@
+# Paper files
+*.tex
+*.pdf
+*.png
+*.jpg
+*.bib
+*.aux
+*.log
+*.out
+
+# Data files
+data/
+syllabi/
+ground_truth/
+*.csv
+*.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Documentation working files
+*FINAL*.md
+*REFERENCE*.md
+*UPDATE*.md
+*STATUS*.md
+*OPTIONS*.md
+*DELIVERABLES*.md
+generate_figures*.py
+create_additional*.py
+new_results_section.tex

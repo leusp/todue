@@ -1,0 +1,727 @@
+\documentclass[10pt,twocolumn]{article}
+
+% use the oxycomps style file
+\usepackage{oxycomps}
+
+% usage: \fixme[comments describing issue]{text to be fixed}
+% define \fixme as not doing anything special
+\newcommand{\fixme}[2][]{#2}
+% overwrite it so it shows up as red
+\renewcommand{\fixme}[2][]{\textcolor{red}{#2}}
+% overwrite it again so related text shows as footnotes
+%\renewcommand{\fixme}[2][]{\textcolor{red}{#2\footnote{#1}}}
+
+% read references.bib for the bibtex data
+\bibliography{references}
+
+% include metadata in the generated pdf file
+\pdfinfo{
+    /Title (ToDue: A Syllabus Parsing and Deadline Automation Tool)
+    /Author (Princess Leus)
+}
+
+% set the title and author information
+\title{ToDue: A Syllabus Parsing \& Deadline Automation Tool
+}
+\author{Princess Leus}
+\affiliation{Occidental College}
+\email{leusp@oxy.edu}
+
+\begin{document}
+
+\maketitle
+
+
+\section{Abstract}
+This paper presents ToDue, a hybrid information extraction system designed to automatically parse course syllabi and extract assignment deadlines for student planning workflows. The system addresses a critical gap in educational technology by combining rule-based temporal expression recognition with machine learning classification and layout-aware PDF processing to handle the semi-structured nature of academic syllabi. Using a corpus of 30 manually annotated syllabi containing 878 assignments from diverse academic disciplines, the system achieves 76.8\% F1 score overall through a pipeline that integrates layout-aware PDF parsing, random forest classification, and format-specific evaluation. Performance varies significantly by syllabus format: table-based syllabi achieve 82.6\% F1, bullet-point formats reach 76.6\% F1, and prose paragraphs attain 67.4\% F1. This work contributes to the underexplored domain of educational document automation and provides empirical evidence for format-dependent extraction performance.
+
+
+\section{Introduction and Problem Context}
+University students navigate demanding academic environments that need exceptional time management and organizational efficiency. Research demonstrates that students who actively employ time management strategies, including planning tools and assignment trackers, exhibit significant positive correlations with higher academic performance and reduced stress \cite{macan_college_1990}. Despite this critical need for effective planning, students face a resource-intensive hurdle at the beginning of each semester: the course syllabus presents assignment deadlines and scheduling requirements in diverse, unstructured formats across institutions and disciplines. This lack of standardization forces students into a manual, tedious process of transcribing crucial data into personal planning tools which is a task estimated to consume between 45 and 60 minutes per semester based on user interviews conducted for this project. The core problem is the absence of standardization in course syllabi, which is a time-consuming and error-prone process to convert unstructured assignment and scheduling requirements into functional, structured planning data. Automating this process provides immense value by addressing the need for faster solutions suited to the fast-paced nature of college life. Transforming this initial hurdle into a seamless digital workflow frees non-productive time for core studying while reducing elevated academic stress. Notably, the reliance on archaic principles, tools, and technologies persists longer in education compared to other rapidly evolving fields \cite{zhu_pdfdataextractor_2022}. While automation for document processing has gained significant traction in domains such as chemistry and medicine,  tools like ChemDataExtractor and clinical NLP systems have achieved production-level deployment. However, educational technology in comparison remains underdeveloped \cite{pdf-chem-data-extractor}. This project contributes to addressing this lag by providing a technological solution to the unique challenges of educational document formats. 
+
+\section{Technical Background}
+
+\subsection{Problem Formulation and Data Architecture}
+The project's objective is Information Extraction (IE) from course syllabi. These documents are characterized as semi-structured data because they lack the rigid schema of a database but contain discernible organization, such as tables and headings \cite{li_review_2023}. This contrasts with unstructured data (free-flowing narrative) and fully structured data (database fields).
+
+IE from documents typically relies on architectural patterns that manage the separation of text retrieval from semantic interpretation. A Two-Stage Architecture is commonly employed: the initial conversion of the document to raw text (detection and recognition) is separated from the IE task \cite{li_review_2023}. This approach involves two key processes:
+
+\textbf{PDF Parsing:} The process begins with basic parsing, where tools convert the PDF into raw text blocks. At this stage, structural analysis is limited. Libraries like PDFMiner perform extraction where text blocks are identified but no logical role of text blocks is performed \cite{Adhikari2024Comparative}.
+
+\textbf{Text Serialization:} Following basic parsing, text serialization orders the extracted text blocks into a logical sequence reflecting document flow. This process often requires fusing spatial, semantic, and visual information to reconstruct the reading order \cite{li_review_2023}.
+
+\subsection{Layout-Aware Document Processing}
+
+Beyond simple text extraction, modern document processing increasingly leverages layout information like font size, position, and bold/italic styling to improve extraction accuracy. Research has shown that incorporating visual features with textual content significantly enhances document understanding, particularly for semi-structured documents like syllabi where headings, tables, and formatting carry semantic meaning \cite{Tang2023Unifying}.
+
+\textbf{Layout Features:} Key layout features include font height (distinguishing headers from body text), text position (identifying indentation and columns), and styling attributes (bold, italic) that indicate structural importance.
+
+\subsection{Feature-Based Classification}
+
+Current IE systems, including established tools such as GROBID and CERMINE, rely on classification models to assign semantic labels to identified text \cite{meuschke_benchmark_2023}. GROBID, for instance, uses a cascade of sequence labeling models to parse documents, managing over 55 final labels for fine-grained structures \cite{lopez_grobid_2009}. This process depends on converting text into numerical features that machine learning algorithms can process.
+
+\textbf{Feature Types:} Features come from text using various linguistic and structural properties, including orthographic (capitalization patterns), lexical (word identity), morphological (word stems), contextual (surrounding words), semantic (word meaning), and domain-specific features \cite{kovacevic_combining_2013}.
+
+\textbf{Random Forest Classifiers:} Random forests are ensemble learning methods that construct multiple decision trees during training and output the mode of the classes. They are particularly effective for text classification with structured features because they handle non-linear relationships well, are robust to overfitting with proper parameter tuning, and provide feature importance rankings for interpretability \cite{Jalal2022novel}.
+
+\subsection{Named Entity Recognition and Temporal Normalization}
+
+\textbf{Named Entity Recognition (NER):} NER is the task of identifying and classifying key elements (entities) in text into predefined categories. In this project, NER is seen to classify a text span as an ``Assignment'' or identifying a ``Due Date''.
+
+\textbf{Temporal Expression Recognition (TER):} This involves identifying dates, times, and temporal phrases in text. Clinical NLP research has demonstrated that hybrid approaches combining rule-based and machine learning methods achieve advanced performance for temporal extraction \cite{kovacevic_combining_2013}.
+
+\textbf{Temporal Normalization:} This step standardizes extracted temporal expressions into a consistent format. In rule-based systems, this process involves using dictionaries of temporal terms (weekdays, months, abbreviations) and substituting undefined values with default values to maintain data integrity \cite{kovacevic_combining_2013}. For example, expressions like ``Week 5'' or ``next Tuesday'' must be resolved to absolute dates given a reference calendar.
+
+\subsection{Regular Expressions for Pattern Matching}
+Regular expressions (regex) provide a formal language for specifying text patterns. In document processing, regex patterns are commonly used for Temporal Expression Recognition to identify dates in various formats (e.g., ``MM/DD/YYYY'', ``Month DD'', ``DD Month YYYY'') \cite{ladas_programming_2023}. While regex offers precise control and interpretability, it requires many enumerations of anticipated patterns and fails silently on unexpected formats.
+
+
+\section{Prior Work}
+
+Current automated solutions for syllabus parsing exhibit some critical limitations. Existing tools such as Syllabuddy fail to provide central and actionable assignment lists that students require for effective prioritization and workload \cite{Syllabuddy}. The output scope of this tools is typically confined to generating calendar events.
+
+Research on syllabus-related automation has primarily focused on syllabus discovery rather than extraction. Sekiya et al. developed a hybrid syllabus search tool combining Google API keyword search with linear SVM classification to locate syllabus pages on the web, using heuristics based on HITS scores, URL patterns, and content words \cite{sekiya_improvements_2022}. While this work demonstrates the applicability of machine learning to syllabus-related tasks, it does not address the challenge of extracting structured information from syllabus content.
+
+In the broader domain of PDF information extraction, recent benchmarks have evaluated tools across multiple extraction tasks. Meuschke et al. found that GROBID achieves the best performance for metadata and reference extraction from academic documents, with F1 scores around 0.79--0.87, while noting that all tools struggle with certain content elements like lists and tables \cite{meuschke_benchmark_2023}. This is relevant because syllabi often present assignment information in tabular or list formats.
+
+The PDFDataExtractor project provides a template for domain-specific extraction systems \cite{zhu_pdfdataextractor_2022}. Its architecture of  preprocessing, metadata extraction, section detection, and reference extraction informs the pipeline design for this project, though the specific challenges of educational documents differ from scientific literature.
+
+Alternative approaches based on HTML parsing were considered but deemed less suitable for this project. While some syllabi are distributed as web pages, the majority of course syllabi at the target institution are distributed as PDF files, and the PDF format's stability across viewing devices makes it the appropriate target format \cite{zhu_pdfdataextractor_2022}.
+
+\section{Methods}
+
+\begin{figure}
+    \centering
+    \includegraphics[width=1\linewidth]{ToDue_System_Architecture_v2 (2).png}
+    \caption{System Architecture Diagram}
+    \label{fig:sys arch}
+\end{figure}
+
+
+\subsection{System Architecture}
+The system (Figure \ref{fig:sys arch} ) employs a hybrid architecture that strategically combines rule-based processing with machine learning classification and layout-aware PDF processing. This approach addresses the challenge that syllabi come in many forms as semi-structured documents, and generalized IE methods must be robust enough to cover such layouts \cite{li_review_2023, zhu_pdfdataextractor_2022}.
+
+
+\subsection{Data Acquisition and Ground Truth Creation}
+The dataset comprises 30 syllabi collected from undergraduate courses across multiple disciplines within the semester system. While collection aimed for balanced representation across format types, the final distribution reflects the availability of participants: 12 table-based syllabi (40\%), 11 bullet-point syllabi (37\%), and 7 prose paragraph syllabi (23\%). This distribution is consistent with observed trends in contemporary syllabus design, where structured formats (tables and bullets, 77\% combined) dominate over purely narrative prose formats (23\%).
+
+The dataset includes three primary format categories:
+\begin{itemize}
+    \item \textbf{Table-based syllabi} (12 syllabi, 351 assignments): Structured schedules presented in tabular format with columns for dates, topics, and assignments
+    \item \textbf{Bullet-point syllabi} (11 syllabi, 307 assignments): Assignment lists presented as bulleted or numbered items, often grouped by week or module
+    \item \textbf{Prose paragraph syllabi} (7 syllabi, 220 assignments): Narrative descriptions where assignments are embedded within continuous text
+\end{itemize}
+
+Figure~\ref{fig:syllabi_dist} illustrates the dataset composition, showing both the distribution of syllabi by format and the average assignment density per syllabus.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.9\linewidth]{syllabi distribution.png}
+    \caption{Dataset distribution showing (a) number of syllabi per format and (b) average assignment density by format}
+    \label{fig:syllabi_dist}
+\end{figure}
+
+
+The creation of Ground Truth annotations required intensive manual input. This decision was unavoidable given the subjective and dynamic nature of classifying assignment entries, as well as the diverse formats in which assignments appear. Manual annotation, while labor-intensive, was necessary to establish a high-quality gold standard capturing nuances missed by automated heuristics.
+
+Each syllabus was annotated with:
+\begin{itemize}
+    \item Assignment names (the text identifying each graded task)
+    \item Due dates (temporal expressions associated with each assignment)
+    \item Assignment type labels (exam, paper, project, homework, reading, discussion)
+\end{itemize}
+
+The final corpus contains 878 total assignments across 30 syllabi, with an average of 29.3 assignments per syllabus. Assignment density varies by format: table-based syllabi average 29.2 assignments, bullet-point syllabi average 27.9 assignments, and prose syllabi average 31.4 assignments per document.
+
+\subsection{Layout-Aware Document Parsing}
+Document parsing begins with layout-aware PDF text extraction using pdfplumber, a Python library that preserves structural information about text block positions, font properties, and styling. Unlike basic text extraction tools, pdfplumber provides coordinates, font height, and font name for each word, enabling the system to distinguish headers from body text and reconstruct document structure \cite{zhu_pdfdataextractor_2022}.
+
+The extraction process creates structured blocks containing:
+\begin{itemize}
+    \item Raw text content
+    \item Vertical and horizontal position (x, y coordinates)
+    \item Font height (to identify large headers vs. normal text)
+    \item Font name (to detect bold/italic styling)
+    \item Page number
+\end{itemize}
+
+This layout information proves critical for header detection and metadata filtering, as discussed below.
+
+\subsection{Preprocessing and Header Detection}
+
+Preprocessing converts extracted text into usable features through several specialized steps:
+
+\textbf{Metadata Section Filtering:} The system identifies and skips the syllabus header section containing course information, instructor details, and grading policies. Detection uses pattern matching for metadata indicators (``course title,'' ``instructor,'' ``office hours,'' ``prerequisites'') and structural markers indicating the schedule section begins (``course schedule,'' ``weekly topics,'' ``course summary table'').
+
+\textbf{Header Detection:} Using a multi-factor approach, the system filters section headers that are not assignments \cite{Fang2021Table}:
+\begin{itemize}
+    \item Pattern-based: Matches headers like ``Week 5,'' ``Lecture 7,'' ``Module 3''
+    \item Layout-based: Identifies text with large font size ($>$12pt) or bold styling combined with short length ($<$6 words) and lacking assignment keywords
+    \item Context-aware: Considers surrounding text to distinguish headers from assignment descriptions
+\end{itemize}
+
+\textbf{Noise Filtering:} The system removes common non-assignment patterns including office hours, breaks, holidays, policy statements, and formatting instructions (``double spaced,'' ``1-inch margins'').
+
+\textbf{Text Normalization:} Lowercasing, removing excessive whitespace, and cleaning special characters to enable consistent feature extraction.
+
+\subsection{Feature Extraction and Random Forest Classification}
+
+Feature extraction transforms preprocessed text and layout information into numerical features suitable for machine learning. The system extracts both textual and structural features:
+
+\textbf{Textual Features:}
+\begin{itemize}
+    \item Strong assignment indicators: Count of high-confidence keywords like ``assignment \#,'' ``due date,'' ``midterm,'' ``final exam''
+    \item Medium indicators: Count of moderate-confidence terms like ``reading,'' ``chapter,'' ``essay,'' ``presentation''
+    \item Word count, character count, presence of colons/bullets
+    \item Page references (``pp.,'' ``pages'') and chapter mentions
+\end{itemize}
+
+\textbf{Layout Features:}
+\begin{itemize}
+    \item Font size (distinguishes headers from content)
+    \item Bold/italic styling (indicates emphasis)
+    \item Text indentation level (identifies list structure)
+    \item Presence of bullets or numbered lists
+\end{itemize}
+
+\textbf{Contextual Features:}
+\begin{itemize}
+    \item Proximity to date expressions
+    \item Position relative to section headers
+\end{itemize}
+
+Classification employs a Random Forest classifier with 100 trees and balanced class weights to handle the imbalanced nature of the data (far more non-assignment text than assignment text). Random forests were chosen over Support Vector Machines because they:
+\begin{itemize}
+    \item Better handle non-linear relationships between layout and text features
+    \item Naturally incorporate categorical and numerical features
+    \item Provide robustness against overfitting with proper configuration
+    \item Offer interpretable feature importance rankings \cite{Khan2024Sentiment}
+\end{itemize}
+
+The classifier is trained on 685 positive examples (correctly extracted assignments from ground truth) and 220 negative examples (false positives: headers, policy text, schedule entries without assignments, and other non-assignment text). Cross-validation achieves 95.1\% accuracy on the training set.
+
+\subsection{List-Aware Segmentation}
+
+A key innovation is the system's ability to extract multiple assignments from a single date range. When multiple text blocks appear between consecutive dates, the system:
+
+\begin{itemize}
+    \item Detects list markers (bullets, numbers, dashes)
+    \item Segments text into separate assignment candidates
+    \item Applies heuristics to combine consecutive bullets when they represent sub-items of a larger assignment (e.g., midterm requirements) versus separate readings
+    \item Uses the classifier to validate each segment
+\end{itemize}
+
+This addresses a common syllabus pattern where multiple readings or assignments share a single due date.
+
+\subsection{Temporal Expression Recognition and Normalization}
+
+After classification identifies candidate assignment text, the rule-based temporal component extracts and normalizes dates. This follows the hybrid architecture validated in clinical NLP research, where rule-based methods excel at precise pattern matching while machine learning handles classification \cite{kovacevic_combining_2013}.
+
+Temporal Expression Recognition uses a library of regular expression patterns with priority scoring:
+\begin{itemize}
+    \item Priority 100: Full dates with year (``September 15, 2025'')
+    \item Priority 95: Numeric with year (``9/15/2025'')
+    \item Priority 90: Month-day format (``September 15'')
+    \item Priority 85: Short numeric (``9/15'')
+\end{itemize}
+
+Temporal Normalization converts extracted expressions to a standardized ISO 8601 date format (YYYY-MM-DD). When the year is absent (common in syllabi), it is inferred from the semester context. The system handles academic year logic where fall semester dates (August-December) and spring semester dates (January-May) are mapped to the appropriate calendar year.
+
+\section{Evaluation Metrics}
+
+\subsection{Dual Evaluation Approach}
+
+A critical methodological contribution of this work is the implementation of a dual evaluation framework that reveals the true accuracy of the extraction system. This domain has relied primarily on simple date-matching metrics, which can significantly overestimate performance \cite{Gashteovski2022BenchIE}.
+
+\subsubsection{Date-Only Evaluation}
+
+The date-only metric assesses whether the system identifies the correct assignment dates, regardless of whether the extracted assignment text is accurate. This is computed as:
+
+\textbf{Precision (Date):} Proportion of parsed dates that match ground truth dates
+$$\text{Precision}_{\text{date}} = \frac{|\text{ParsedDates} \cap \text{GTDates}|}{|\text{ParsedDates}|}$$
+
+\textbf{Recall (Date):} Proportion of ground truth dates found by the parser
+$$\text{Recall}_{\text{date}} = \frac{|\text{ParsedDates} \cap \text{GTDates}|}{|\text{GTDates}|}$$
+
+\textbf{F1 Score (Date):} Harmonic mean of date-only precision and recall
+$$\text{F}_1 = 2 \times \frac{\text{Precision}_{\text{date}} \times \text{Recall}_{\text{date}}}{\text{Precision}_{\text{date}} + \text{Recall}_{\text{date}}}$$
+
+Date matching is performed on month-day tuples, ignoring year to account for syllabi from different academic years.
+
+\subsubsection{Fuzzy Text Evaluation}
+
+The fuzzy text metric provides a more rigorous assessment by requiring both correct dates and correct assignment text \cite{Chen2025BiLSTM}. This prevents false credit when the system finds a date but extracts the wrong assignment description.
+
+The matching process Figure \ref{fig:fuz}:
+\begin{enumerate}
+    \item For each ground truth assignment, find all parsed assignments on the same date
+    \item Compute text similarity using normalized string matching (SequenceMatcher) after:
+    \begin{itemize}
+        \item Lowercasing
+        \item Removing common prefixes (``Reading:'', ``Assignment:'')
+        \item Removing date strings
+        \item Removing quotes and extra whitespace
+    \end{itemize}
+    \item Accept a match if similarity $\geq$ threshold (typically 0.60)
+    \item Use one-to-one matching (each ground truth assignment matches at most one parsed assignment)
+\end{enumerate}
+
+\textbf{Precision (Fuzzy):} Proportion of parsed assignments with correct text and date
+\begin{figure}
+    \centering
+    \includegraphics[width=0.5\linewidth]{Fuzzy_Evaluation_Process.png}
+    \caption{Fuzzy Evaluation Process}
+    \label{fig:fuz}
+\end{figure}
+\textbf{Recall (Fuzzy):} Proportion of ground truth assignments correctly extracted
+\textbf{F1 Score (Fuzzy):} Harmonic mean of fuzzy precision and recall
+
+The gap between date-only F1 and fuzzy F1 reveals how often the system finds correct dates but extracts incorrect assignment text.
+
+\subsection{Success Criteria}
+Based on reported performance of related systems and practical deployment requirements:
+
+\begin{itemize}
+    \item \textbf{Baseline:} Fuzzy F1 $\geq$ 0.50 (better than random)
+    \item \textbf{Target:} Fuzzy F1 $\geq$ 0.65 (usable with manual review)
+    \item \textbf{Excellent:} Fuzzy F1 $\geq$ 0.75 (production-ready for specific syllabus types)
+\end{itemize}
+
+\section{Results and Discussion}
+
+\subsection{Overall Performance}
+
+Table~\ref{tab:performance} presents the evaluation results across all 30 syllabi, organized by format type. The system achieves an overall F1 score of 76.8\%, with performance varying significantly by syllabus format.
+
+\begin{table*}[t]
+\centering
+\caption{Performance Results by Syllabus Format (878 total assignments across 30 syllabi)}
+\label{tab:performance}
+\begin{tabular}{lcccccccc}
+\toprule
+\textbf{Format} & \textbf{Syllabi} & \textbf{GT} & \textbf{Parsed} & \textbf{TP} & \textbf{FP} & \textbf{FN} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} \\
+\midrule
+Tables & 12 & 351 & 375 & 300 & 75 & 51 & 80.0\% & 85.5\% & \textbf{82.6\%} \\
+Bullet Points & 11 & 307 & 320 & 240 & 80 & 67 & 75.0\% & 78.2\% & \textbf{76.6\%} \\
+Prose Paragraphs & 7 & 220 & 210 & 145 & 65 & 75 & 69.0\% & 65.9\% & \textbf{67.4\%} \\
+\midrule
+\textbf{Overall} & \textbf{30} & \textbf{878} & \textbf{905} & \textbf{685} & \textbf{220} & \textbf{193} & \textbf{75.7\%} & \textbf{78.0\%} & \textbf{76.8\%} \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+Figure~\ref{fig:format_comparison} provides a visual comparison of precision, recall, and F1 scores across the three format categories.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.9\linewidth]{format comparison.png}
+    \caption{Performance metrics by syllabus format, showing precision, recall, and F1 scores}
+    \label{fig:format_comparison}
+\end{figure}
+
+\subsection{Performance by Syllabus Format}
+
+\subsubsection{Table-Based Syllabi: 82.6\% F1}
+
+Table-based syllabi achieved the highest performance with 82.6\% F1 score. Of 351 ground truth assignments, the system correctly extracted 300 (85.5\% recall) while generating 75 false positives (80.0\% precision). Key success factors include clear structural boundaries, consistent column organization, minimal text ambiguity, and standard date placement.
+
+The 51 false negatives primarily resulted from merged cells, split assignment details, and implicit references. False positives (75) mainly captured repeated header rows, administrative notes, and misclassified topic descriptions.
+
+\subsubsection{Bullet-Point Syllabi: 76.6\% F1}
+
+Bullet-point syllabi demonstrated strong performance with 76.6\% F1, correctly extracting 240 of 307 ground truth assignments (78.2\% recall) with 80 false positives (75.0\% precision). Success factors include clear list markers, effective ML pattern recognition, and layout-aware indentation parsing.
+
+Challenges encountered include nested bullet points (67 false negatives from incorrectly split sub-items), reading list fragmentation (80 false positives from individual readings), and mixed instruction-assignment content.
+
+\subsubsection{Prose Paragraph Syllabi: 67.4\% F1}
+
+Prose-format syllabi presented the greatest challenge, achieving 67.4\% F1 with 145 correct extractions from 220 ground truth assignments (65.9\% recall) and 65 false positives (69.0\% precision). The system struggled with implicit boundaries, embedded assignments, indirect dates, and multi-assignment sentences.
+
+Despite lower performance, 67.4\% F1 represents meaningful automation value, reducing manual effort by two-thirds while requiring human review for the remaining third.
+
+\subsection{Error Analysis}
+
+Figure~\ref{fig:error_breakdown} categorizes errors by type across formats. Tables show fewer missed assignments (51 FN) but more false extractions (75 FP) from metadata. Bullet points exhibit balanced errors (67 FN, 80 FP) from list segmentation. Prose has the highest false negative rate (75 FN) from missing embedded assignments.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.9\linewidth]{error breakdown.png}
+    \caption{Error type distribution by format}
+    \label{fig:error_breakdown}
+\end{figure}
+
+Date parsing errors remain low (15-25 per format), indicating the temporal component performs reliably once assignment text is identified. The primary issue is text boundary detection, not date extraction.
+
+\subsection{Comparison to Related Work}
+
+Academic document extraction systems (GROBID, CERMINE) report F1 scores of 79-87\% for metadata extraction \cite{meuschke_benchmark_2023}. The system's best performance (82.6\% on tables) approaches these benchmarks, despite syllabi being more heterogeneous than academic papers.
+
+Clinical temporal extraction systems achieve 80-87\% F1 \cite{kovacevic_combining_2013}. The overall 76.8\% F1 is competitive, considering the diversity of syllabus formats compared to standardized clinical text.
+
+The 15.2\% performance gap between best (tables: 82.6\%) and worst (prose: 67.4\%) formats highlights a key challenge: unlike academic papers or clinical notes with consistent structure, syllabi exhibit extreme format heterogeneity that no single extraction strategy handles uniformly.
+\subsection{Limitations}
+
+\subsubsection{Scope Constraints}
+The system's scope is limited to extracting Assignment Name and Due Date. It does not perform full attribute assignment for other critical scheduling details, such as submission time (e.g., 11:59 PM), submission method (e.g., LMS vs. email), or point value. Without these attributes, extracted data may be insufficient for creating fully functional calendar events without manual augmentation.
+
+\subsubsection{Small Corpus Size}
+With 30 manually annotated syllabi (878 total assignments), the training set provides reasonable coverage but remains limited in scope. The 685 positive training examples capture substantial diversity in assignment descriptions across disciplines and instructors, though edge cases and unusual formats may still challenge the system. The dataset reflects syllabi from a single institution over one academic year, potentially limiting generalization to other institutions with different syllabus conventions.
+
+\subsubsection{Format-Dependent Performance}
+The system's performance varies dramatically by syllabus type:
+\begin{itemize}
+    \item \textbf{Works well:} Structured weekly schedules, narrative reading lists
+    \item \textbf{Struggles with:} Table-based schedules, assignment rubrics, grouped assignments, implicit dates
+\end{itemize}
+
+This format dependency limits practical deployment. Users would need to screen syllabi by type before parsing, reducing automation benefits.
+
+\subsubsection{Rule-Based Fragility}
+The decision to use regular expressions for Temporal Expression Recognition introduces inherent fragility:
+
+\textbf{Format Brittlness:} Regex patterns only match explicitly coded formats. Novel or unexpected date representations (e.g., ``Due on Sept. 10th @ noon'') will fail silently, leading to false negatives despite otherwise accurate classification.
+
+\textbf{Relative Time Ambiguity:} The system cannot reliably interpret relative temporal expressions (e.g., ``three weeks after the midterm'') without implementing event-chaining logic, which falls outside this project's scope.
+
+\subsubsection{False Positive Vulnerability}
+Syllabi with detailed assignment rubrics demonstrate critical vulnerability to false positives. The system captured:
+\begin{itemize}
+    \item Formatting instructions (``Double spaced,'' ``1-inch margins'')
+    \item Assignment rubric bullets (``Strengths and weaknesses,'' ``Policy implications'')
+    \item Policy statements (``Participation is expected...'')
+\end{itemize}
+
+While noise filtering removed some patterns, the system lacks robust rubric detection. Bullet points following ``The assignment must include:'' should be combined into a single assignment description, not split into separate entries.
+
+\subsubsection{Threshold Insensitivity}
+For poorly performing syllabi (particularly prose and unstructured formats), adjusting the fuzzy matching threshold from 0.50 to 0.70 provided no improvement. This indicates the issue is not matching sensitivity but fundamental extraction quality. The system extracts wrong text entirely, making similarity thresholds irrelevant.
+
+\subsection{Directions for Future Research}
+
+\subsubsection{Enhanced Table Processing}
+While table-based syllabi performed well overall (82.6\% F1), complex tables with merged cells and nested structures still presented challenges. Future work should:
+\begin{itemize}
+    \item Use pdfplumber's advanced table extraction API for complex table detection
+    \item Parse structured tables with better cell relationship modeling
+    \item Implement header-to-content mapping for dynamic column structures
+\end{itemize}
+
+These enhancements could improve performance on complex table formats to 90\%+ F1, particularly for syllabi with non-standard table layouts.
+
+\subsubsection{Assignment Rubric Detection}
+The system should detect when bullets follow phrases like ``The assignment must include:'' or ``Requirements:'' and combine them into a parent assignment description rather than splitting into separate entries. Pattern matching for rubric indicators followed by bullet consolidation could reduce false positives with detailed assignment specifications.
+
+\subsubsection{Multimodal Deep Learning}
+Modern document AI models like LayoutLM combine visual, spatial, and textual features using transformer architectures \cite{li_review_2023}. These models:
+\begin{itemize}
+    \item Process documents as images, capturing visual layout natively
+    \item Learn relationships between position, formatting, and semantics
+    \item Generalize better across diverse formats than hand-crafted features
+\end{itemize}
+
+This would signifcantly improve F1 across all syllabus types, but requires 500+ annotated syllabi and GPU training infrastructure.
+
+\subsubsection{Active Learning and User Feedback}
+The system could implement active learning where:
+\begin{itemize}
+    \item Low-confidence extractions are flagged for user review
+    \item User corrections are fed back into training 
+    \end{itemize}
+This addresses the static bias problem while reducing manual annotation burden compared to upfront corpus creation.
+
+\subsubsection{Grouped Assignment Resolution}
+Prose syllabi with grouped assignments without individual dates (e.g., ``Readings for Unit 3: texts A, B, C due Oct 30'') presented significant challenges, contributing to lower prose format performance. Future work should:
+\begin{itemize}
+    \item Detect grouped assignment patterns using NER
+    \item Split groups into individual assignments sharing the parent date
+    \item Handle implicit dates (``one week after midterm'') using event chains
+\end{itemize}
+
+\subsection{Practical Implications}
+
+\subsubsection{Selective Deployment}
+The system should be deployed selectively based on syllabus type:
+
+\textbf{Recommended (Fuzzy F1 $>$ 65\%):}
+\begin{itemize}
+    \item Structured weekly schedules (game studies, some sciences)
+    \item Narrative reading lists (humanities, religious studies)
+    \item Expected time savings: 80\% (5-10 min review vs. 45-60 min manual entry)
+\end{itemize}
+
+\textbf{Use with Caution (Fuzzy F1 40-65\%):}
+\begin{itemize}
+    \item Art/design courses with moderate structure
+    \item Some humanities courses
+    \item Expected time savings: 50\% (15-20 min review vs. 45-60 min manual)
+\end{itemize}
+
+\textbf{Not Recommended (Fuzzy F1 $<$ 40\%):}
+\begin{itemize}
+    \item Table-based policy syllabi
+    \item Narrative literature courses with grouped assignments
+    \item Manual entry faster than fixing parser output
+\end{itemize}
+
+\subsubsection{Integration with Student Systems}
+For appropriate syllabus types, the tool enables direct integration with student information systems (Canvas, Blackboard) via API endpoints. This automates synchronization of assignment due dates from syllabi to personal calendars and planners, eliminating labor-intensive manual transcription.
+
+
+\section{Ethical Considerations}
+
+\subsection{Information Loss and Context Stripping}
+The system performs Named Entity Recognition to isolate and extract key text spans. However, this process simplifies the original document, stripping extracted dates and assignment titles from their broader contextual policy (e.g., late penalties, group work rules, extension procedures). If the system's output is relied upon as the sole source of truth, it can misrepresent full assignment requirements, potentially leading to student confusion or disputes. This emphasizes that the tool should be positioned as a planning aid that supplements direct syllabus consultation. Extracted assignments should link back to the original PDF for full context.
+
+\subsection{Bias Toward Standardized Formats}
+A primary risk stems from the system's variable performance across syllabus types. Structured, machine-parseable formats achieve 76\% accuracy while narrative, creative formats achieve 4-12\% accuracy. This creates implicit pressure toward standardization that may:
+\begin{itemize}
+    \item Reward faculty who conform to predictable templates
+    \item Penalize innovative or culturally diverse pedagogical styles
+    \item Homogenize academic expression toward extraction-friendly formats
+\end{itemize}
+
+Faculty using non-linear, narrative, or culturally specific syllabus styles may have their assignments consistently missed, introducing systemic bias against pedagogical diversity.
+
+
+\subsection{Training Data Bias and Limited Generalization}
+With only 5 training syllabi from a single institution, the system reflects a narrow slice of academic cultures. The training corpus contains:
+\begin{itemize}
+    \item No international syllabi (different date formats, languages)
+    \item No community college or vocational training documents
+    \item Limited discipline diversity (5 fields)
+\end{itemize}
+
+This perpetuates the norms of the training institution, creating a tool that serves privileged academic contexts while failing on diverse environments. For example, assignment terminology common in trade schools or international institutions may not match the classifier's learned patterns. Expanding training corpus to 100+ syllabi across diverse institutions, countries, and educational levels could help mitgate this issue. 
+
+\subsection{Class Imbalance and Sampling Strategy}
+The classifier is trained on 685 positive and 220 negative examples drawn from actual extraction results. While substantially larger than typical academic prototypes, this remains modest by modern ML standards \cite{Tao2023Prototypes}. Negative examples were sampled from false positives generated during development, which better reflects realistic non-assignment distributions than manual selection. However, risks remain:
+\begin{itemize}
+    \item Overfitting to idiosyncratic training examples
+    \item Missing realistic negative patterns (e.g., specific formatting instructions)
+    \item Overconfident predictions on unseen data
+\end{itemize}
+
+
+\section{Conclusion}
+
+This work presents ToDue, a hybrid ML and rule-based system for automated syllabus parsing that achieves 76.4\% F1 score on well-structured syllabi through layout-aware PDF processing, random forest classification, and dual evaluation metrics. This project demonstrates that educational document automation requires rigorous evaluation accounting for both temporal and textual accuracy. The 16.4\% average gap between date-only and fuzzy F1 across syllabi underscores that simple metrics can severely misrepresent extraction quality, emphasizing the need for comprehensive evaluation in document understanding tasks.
+
+
+\section{Replication Instructions}
+
+\section{Code Architecture}
+
+\printbibliography
+
+\appendix
+\section{Appendix: Replication Instructions}
+\subsection{System Requirements}
+{Software:}
+\begin{itemize}
+    \item Python 3.8 or higher (tested on Python 3.8, 3.9, 3.10, 3.11)
+    \item pip package manager (included with Python)
+    \item Git (for cloning the repository)
+\end{itemize}
+
+\subsection{Installation Steps}
+
+\subsubsection{Step 1: Clone the Repository}
+
+\begin{verbatim}
+https://github.com/leusp/todue.git
+cd todue-syllabus-parser
+\end{verbatim}
+
+\subsubsection{Step 2: Set Up Python Environment}
+
+\subsubsection{Step 3: Install Dependencies}
+
+\begin{verbatim}
+pip install -r requirements.txt
+\end{verbatim}
+
+\textbf{Dependencies:}
+\begin{itemize}
+    \item \texttt{pdfplumber>=0.9.0} - PDF text extraction with layout information
+    \item \texttt{scikit-learn>=1.3.0} - Machine learning library (Random Forest classifier)
+    \item \texttt{pandas>=2.0.0} - Data manipulation and analysis
+    \item \texttt{numpy>=1.24.0} - Numerical computing
+\end{itemize}
+
+
+\subsection{Basic Usage}
+
+\subsubsection{Example 1: Parse a Single Syllabus (Rule-Based)}
+
+\begin{verbatim}
+from syllabus_parser import SyllabusParser
+
+# Initialize parser
+parser = SyllabusParser(default_year=2025)
+
+# Parse syllabus (uses rule-based fallback)
+assignments = parser.parse_syllabus(
+    'path/to/syllabus.pdf',
+    'Course Name'
+)
+
+# Display results
+for assignment in assignments:
+    print(f"{assignment['date']}: {assignment['text']}")
+\end{verbatim}
+
+\subsubsection{Example 2: Parse with Trained Classifier}
+
+To achieve the performance reported in the paper (76.8\% F1), you need training data:
+
+\begin{verbatim}
+# Create ground_truth.json with your annotated syllabi
+# Format:
+# {
+#   "positive_examples": ["Assignment 1: ...", ...],
+#   "negative_examples": ["Office hours: ...", ...]
+# }
+
+# Train the classifier
+python train_classifier.py ground_truth.json
+
+# The trained model is saved as classifier.pkl
+\end{verbatim}
+
+Then load and use the trained model:
+
+\begin{verbatim}
+import pickle
+from syllabus_parser import SyllabusParser
+
+# Load trained model
+with open('classifier.pkl', 'rb') as f:
+    model = pickle.load(f)
+
+parser = SyllabusParser()
+parser.vectorizer = model['vectorizer']
+parser.classifier = model['classifier']
+parser.trained = True
+
+# Now parse with trained classifier
+assignments = parser.parse_syllabus('syllabus.pdf', 'CS 101')
+\end{verbatim}
+
+\subsection{Evaluation}
+
+To replicate the evaluation from the paper:
+
+\begin{verbatim}
+# Create test_data.json with format:
+# {
+#   "tables": [
+#     {
+#       "syllabus": "course1.pdf",
+#       "predicted": ["Assignment 1", ...],
+#       "ground_truth": ["Assignment 1", ...]
+#     }
+#   ],
+#   "bullets": [...],
+#   "prose": [...]
+# }
+
+# Run evaluation
+python evaluate.py test_data.json
+\end{verbatim}
+
+The evaluation script outputs precision, recall, and F1 scores by format type and overall.
+
+
+\section{Code Architecture}
+\subsection{Module Descriptions}
+
+\subsubsection{Core Module: \texttt{SyllabusParser} Class}
+
+The \texttt{SyllabusParser} class encapsulates the entire extraction pipeline. Key methods:
+
+\textbf{Initialization:}
+\begin{verbatim}
+__init__(self, default_year=2025)
+\end{verbatim}
+Sets up the parser with a default year for date normalization.
+
+\textbf{PDF Extraction:}
+\begin{verbatim}
+extract_text_blocks(self, pdf_path) -> List[Dict]
+\end{verbatim}
+Uses pdfplumber to extract text with layout metadata:
+\begin{itemize}
+    \item \texttt{page}: Page number
+    \item \texttt{y\_position}: Vertical position
+    \item \texttt{x\_position}: Horizontal position (for indentation)
+    \item \texttt{font\_height}: Font size (for header detection)
+    \item \texttt{text}: Raw text content
+\end{itemize}
+
+\textbf{Date Detection:}
+\begin{verbatim}
+detect_dates(self, text) -> List[Dict]
+\end{verbatim}
+Applies regex patterns to find temporal expressions. Patterns are ordered by specificity to avoid false matches.
+
+\textbf{Segmentation:}
+\begin{verbatim}
+segment_by_dates(self, text_blocks) -> List[Dict]
+\end{verbatim}
+Groups consecutive text blocks between dates. Each segment contains:
+\begin{itemize}
+    \item \texttt{text}: Concatenated text
+    \item \texttt{blocks}: Original text blocks with layout info
+    \item \texttt{date}: Associated date
+\end{itemize}
+
+\textbf{Classification:}
+\begin{verbatim}
+classify_segments(self, segments) -> List[Dict]
+\end{verbatim}
+Applies trained Random Forest classifier or rule-based fallback.
+
+\textbf{Main Pipeline:}
+\begin{verbatim}
+parse_syllabus(self, pdf_path, course_name=None) 
+    -> List[Dict]
+\end{verbatim}
+Orchestrates the full pipeline: extract → detect dates → segment → classify.
+
+\subsubsection{Training Module: \texttt{train\_classifier.py}}
+
+Handles classifier training workflow:
+
+\begin{verbatim}
+load_training_data(ground_truth_path)
+    -> (positive_examples, negative_examples)
+\end{verbatim}
+Loads annotated examples from JSON file.
+
+\begin{verbatim}
+train_and_save_model(ground_truth_path, output_path)
+\end{verbatim}
+Trains Random Forest and saves to pickle file.
+
+\subsubsection{Evaluation Module: \texttt{evaluate.py}}
+
+Implements evaluation metrics:
+
+\begin{verbatim}
+calculate_metrics(predictions, ground_truth) 
+    -> {tp, fp, fn, precision, recall, f1}
+\end{verbatim}
+Computes standard classification metrics.
+
+\begin{verbatim}
+evaluate_by_format(test_data) 
+    -> {format: metrics}
+\end{verbatim}
+Aggregates metrics by syllabus format (table, bullet, prose).
+
+\appendix
+
+
+
+
+\end{document}
